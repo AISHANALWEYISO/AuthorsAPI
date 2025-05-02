@@ -1,8 +1,11 @@
 from flask import Flask
 from app.extensions import db, migrate
 from app.controllers.auth.auth_controllers import auth
+from app.controllers.authors.author_controller import authors
 from flask_jwt_extended import create_access_token, create_refresh_token
 from flask_jwt_extended import get_jwt_identity,  jwt_required
+from flask_jwt_extended import JWTManager
+
 
 # Application factory function
 def create_app():
@@ -11,6 +14,13 @@ def create_app():
 
     db.init_app(app)  
     migrate.init_app(app,db) 
+    jwt = JWTManager(app)
+
+
+    
+    app.config['JWT_SECRET_KEY'] = 'HS256'
+    jwt = JWTManager(app)
+
    
 
     # importing and Registering models
@@ -21,6 +31,7 @@ def create_app():
 
     #Registering blueprints
     app.register_blueprint(auth)
+    app.register_blueprint(authors)
 
 
 
