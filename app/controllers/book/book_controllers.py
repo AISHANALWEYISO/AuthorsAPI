@@ -1,77 +1,96 @@
 from flask import Blueprint, request, jsonify
 from app.Models.book_model import Book, db
-from app.extensions import bcrypt
+from app.extensions import bcrypt, jwt
 from flask_jwt_extended import jwt_required, get_jwt_identity
-import validators
-
-# Create a blueprint
-book = Blueprint('book', __name__, url_prefix='/api/v1/books')
+from app.status_codes import HTTP_400_BAD_REQUEST, HTTP_201_CREATED, HTTP_404_NOT_FOUND, HTTP_500_INTERNAL_SERVER_ERROR, HTTP_200_OK,HTTP_403_FORBIDDEN
 
 
-# Importing status codes
-from app.status_codes import HTTP_400_BAD_REQUEST,HTTP_201_CREATED,HTTP_500_INTERNAL_SERVER_ERROR
+# Create a  book blueprint
+books = Blueprint('book', __name__, url_prefix='/api/v1/books')
 
 # Define the create book endpoint
-@book.route('/register', methods=["POST"])
-def create_book():
+@books.route('/create', methods=["POST"])
+@jwt_required()
+def createbook():
     try:
         # Extract book data from the request JSON
-        data = request.json
+        data = request.get_json()
         title = data.get("title")
-        description = data.get("description")
         price = data.get("price")
         price_unit = data.get("price_unit")
-        publication_date = data.get("publication_date")
-        isbn = data.get("isbn")
+        description = data.get("description")
+        generation = data.get("generation")
+        other_books = data.get("other_books")
         number_of_pages = data.get("number_of_pages")
-        genre = data.get("genre")
-        image = data.get("image")
-        user_id = get_jwt_identity()
+        publication_date = data.get("publication_date")
         company_id = data.get("company_id")
+        author_id = get_jwt_identity()
+        writer = data.get("writer")
 
-        # Validate input data
-        if not all([title, description, price, price_unit, publication_date, genre]):
-            return jsonify({'error': "All required fields are not provided"}), HTTP_400_BAD_REQUEST
 
-        # Create a new instance of the Book model
+        # Validating data to avoid data redandancy
+        if not title or not other_books or not price_unit or not generation or not publication_date or not company_id or not price or not number_of_pages or not writer:
+            return jsonify({'error': "All fields are required"}), HTTP_400_BAD_REQUEST
+
+        # Check if book name already exists
+        if Book.query.filter_by(title=title, author_id=author_id).first() is not None:
+            return jsonify({'error': 'book with this title and author id already exists'}), HTTP_400_BAD_REQUEST
+        
+        # if Book.query.filter_by(generation=generation).first() is not None:
+        #     return jsonify({'error': 'book generation already exists'}), HTTP_400_BAD_REQUEST
+        
+        # Creating a new book
         new_book = Book(
             title=title,
             description=description,
-            price=price,
-            price_unit=price_unit,
-            publication_date=publication_date,
-            isbn=isbn,
             number_of_pages=number_of_pages,
-            genre=genre,
-            image=image,
-            user_id=user_id,
-            company_id=company_id
+            price_unit=price_unit,
+            price=price,
+            generation=generation,
+            author_id=author_id,
+            company_id=company_id,
+            publication_date=publication_date
         )
+        
+            
 
-        # Add the new book instance to the database session
+        # Adding the new book instance to the database session
         db.session.add(new_book)
-
-        # Commit the session to save the changes to the database
         db.session.commit()
 
-        # Return a success response
-        return jsonify({'message': f"Book '{new_book.title}', ID'{new_book.id}' has been created successfully", 
-                        'book':{
-                            'id':new_book.id,
-                            'title': new_book.title,
-                            'description': new_book.description,
-                            'image': new_book.image,
-                            'price': new_book.price,
-                            'price_unit': new_book.price_unit,
-                            'pages': new_book.number_of_pages,
-                            'publication_date': new_book.publication_date,
-                            'isbn': new_book.isbn,
-                            'genre': new_book.genre,
-                            'user_id': new_book.user_id,
-                            'company_id': new_book.company_id}
+        # Return a success response with the newly created book details
+        return jsonify({
+            'message':  title + " has been created successfully",
+            'book': {
+                "id":new_book.id,
+                'title':new_book.title,
+            'description':new_book.description,
+            'number_of_pages':new_book.number_of_pages,
+            'price_unit':new_book.price_unit,
+            'price':new_book.price,
+            'generation':new_book.generation,
+            'publication_date':new_book.publication_date,
+            "company":{
+                       
+                'id': new_book.company.id,
+                'name': new_book.company.name,
+                'origin': new_book.company.origin,
+                'description': new_book.company.description,
+            },
 
-            
-            }), HTTP_201_CREATED
+            "author":{
+                 "first_name":new_book.author.first_name,
+                "last_name":new_book.author.last_name,
+                "authorname":new_book.author.get_full_name(),
+                "email":new_book.author.email,
+                "contact":new_book.author.contact,
+                "type":new_book.author.user_type,
+                'biography':new_book.author.biography,
+                "created_at":new_book.author.created_at,
+            }
+
+            }
+        }), HTTP_201_CREATED
 
     except Exception as e:
         db.session.rollback()
@@ -79,61 +98,97 @@ def create_book():
     
     
     
+#getting all books
 
-# # Define the get book endpoint
-# @book_api.route('/get/<int:book_id>', methods=["GET"])
-# def get_book(book_id):
-#     try:
-#         # querying the book by book_id to get a specific book
-#         book = Book.query.get(book_id)
-#         if not book:
-#             return jsonify({'error': 'Book not found'}), 404
+@books.get('/')
+def getAllbooks():
 
-#         return jsonify({'message': 'Book obtained successfully', 'book_id': book_id}), 201
+    try:
+        all_books = Book.query.all()
 
-#     except Exception as e:
-#         return jsonify({'error': str(e)}), 500
+        books_data = []
+        for book in all_books:
+            book_info = {
+                    "id":book.id,
+                'title':book.title,
+            'description':book.description,
+            'number_of_pages':book.number_of_pages,
+            'price_unit':book.price_unit,
+            'price':book.price,
+            'generation':book.generation,
+            'publication_date':book.publication_date,
+            "company":{
+                       
+                'id': book.company.id,
+                'name': book.company.name,
+                'origin': book.company.origin,
+                'description': book.company.description,
+            },
 
-# # Define the update book endpoint
-# @book_api.route('/edit/<int:book_id>', methods=["PUT"])
-# def update_book(book_id):
-#     try:
-#         # Extract book data from the request JSON
-#         data = request.json
-#         book = Book.query.get(book_id)
-#         if not book:
-#             return jsonify({'error': 'Book not found'}), 404
+            }
 
-#         # Update book fields if provided in the request
-#         for key, value in data.items():
-#             setattr(book, key, value)
+            books_data.append(book_info)
 
-#         # Commit the session to save the changes to the database
-#         db.session.commit()
 
-#         # Return a success response
-#         return jsonify({'message': 'Book updated successfully'}), 200
-
-#     except Exception as e:
-#         db.session.rollback()
-#         return jsonify({'error': str(e)}), 500
-
-# # Define the delete book endpoint
-# @book_api.route('/delete/<int:book_id>', methods=["DELETE"])
-# @jwt_required()
-# def delete_book(book_id):
-    
-#     try:
-#         book_id = Book.query.filter_by(id=id).first()
+        return jsonify({
+                'message':"All books retrieved successfully",
+            "total_books":len(books_data),
+            "books":books_data
+        }),  HTTP_200_OK
         
-#         if not book_id:
-#             return jsonify({'error': 'Book not found'})
-#         else:
-#             db.session.delete(book_id)
-#             db.session.commit()
+    
+    except Exception as e:
+        return jsonify({
+            "error":str(e)
+        }),HTTP_500_INTERNAL_SERVER_ERROR
+    
 
-#         return jsonify({'message': 'Book deleted successfully'}), 200
+    #getting book by id
+@books.get('/book/<int:id>')
+@jwt_required()
+def getbook(id):
 
-#     except Exception as e:
-#         db.session.rollback()
-#         return jsonify({'error': str(e)}), HTTP_500_INTERNAL_SERVER_ERROR
+    try:
+        book = Book.query.filter_by(id=id).first()
+
+      
+
+        return jsonify({
+            "message":"book details retrieved successfully",
+            "book":{
+              
+                    "id":book.id,
+                'title':book.title,
+            'description':book.description,
+            'number_of_pages':book.number_of_pages,
+            'price_unit':book.price_unit,
+            'price':book.price,
+            'generation':book.generation,
+            'publication_date':book.publication_date,
+            "company":{
+                       
+                'id': book.company.id,
+                'name': book.company.name,
+                'origin': book.company.origin,
+                'description': book.company.description,
+            },
+
+            "author":{
+                 "first_name":book.author.first_name,
+                "last_name":book.author.last_name,
+                "authorname":book.author.get_full_name(),
+                "email":book.author.email,
+                "contact":book.author.contact,
+                "type":book.author.user_type,
+                'biography':book.author.biography,
+                "created_at":book.author.created_at,
+            }
+            }
+        })  ,HTTP_200_OK
+    
+    except Exception as e:
+        return jsonify({
+            "error":str(e)
+        }),HTTP_500_INTERNAL_SERVER_ERROR
+    
+    

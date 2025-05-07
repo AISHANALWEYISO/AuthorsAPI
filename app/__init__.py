@@ -5,7 +5,8 @@ from app.controllers.authors.author_controller import authors
 from flask_jwt_extended import create_access_token, create_refresh_token
 from flask_jwt_extended import get_jwt_identity,  jwt_required
 from flask_jwt_extended import JWTManager
-
+from app.controllers.company.company_controllers import companys
+from app.controllers.book.book_controllers import books
 
 # Application factory function
 def create_app():
@@ -32,6 +33,8 @@ def create_app():
     #Registering blueprints
     app.register_blueprint(auth)
     app.register_blueprint(authors)
+    app.register_blueprint(companys)
+    app.register_blueprint(books)
 
 
 

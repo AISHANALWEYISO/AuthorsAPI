@@ -9,7 +9,7 @@ class Author(db.Model):
     contact = db.Column(db.String(50), nullable=False, unique=True)
     image = db.Column(db.String(255), nullable=True) 
     password = db.Column(db.String(255), nullable=False)
-    authors_id = db.Column(db.Integer, db.ForeignKey('authors.id'))
+    # authors_id = db.Column(db.Integer, db.ForeignKey('authors.id'))
     biography = db.Column(db.Text(), nullable=False)
     user_type = db.Column(db.String(100), default='author')
     created_at = db.Column(db.DateTime, default=datetime.now())
